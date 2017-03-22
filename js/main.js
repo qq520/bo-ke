@@ -1,208 +1,110 @@
-jQuery(document).ready(function($){
-	//open/close lateral filter
-	$('.cd-filter-trigger').on('click', function(){
-		triggerFilter(true);
-	});
-	$('.cd-filter .cd-close').on('click', function(){
-		triggerFilter(false);
-	});
+var data;         //存放所有title数据
+var total = 1;    //总页码数
+var flag = true;  //是否加载数据
+var p = 1;        //当前页，默认为1
+page(p);          //默认加载第一页数据
 
-	function triggerFilter($bool) {
-		var elementsToTrigger = $([$('.cd-filter-trigger'), $('.cd-filter'), $('.cd-tab-filter'), $('.cd-gallery')]);
-		elementsToTrigger.each(function(){
-			$(this).toggleClass('filter-is-visible', $bool);
-		});
-	}
+/**
+ * 请求title.html的数据
+ * @param  {int} p   当前页，默认刷新就加载第一页的数据
+ * @param  {int} num 每页显示几条数据，默认显示5条
+ */
+function page(p, num){
+  //设置默认显示10条
+  if (num === undefined) num = 2;
 
-	//mobile version - detect click event on filters tab
-	var filter_tab_placeholder = $('.cd-tab-filter .placeholder a'),
-		filter_tab_placeholder_default_value = 'Select',
-		filter_tab_placeholder_text = filter_tab_placeholder.text();
-	
-	$('.cd-tab-filter li').on('click', function(event){
-		//detect which tab filter item was selected
-		var selected_filter = $(event.target).data('type');
-			
-		//check if user has clicked the placeholder item
-		if( $(event.target).is(filter_tab_placeholder) ) {
-			(filter_tab_placeholder_default_value == filter_tab_placeholder.text()) ? filter_tab_placeholder.text(filter_tab_placeholder_text) : filter_tab_placeholder.text(filter_tab_placeholder_default_value) ;
-			$('.cd-tab-filter').toggleClass('is-open');
+  //判断data是否有值
+  if (data === undefined) {
+    //ajax请求
+    $.get('./title.html', '', function(res){
+      data = res;
+      total = Math.ceil(data.length / num);  //总页码数
+      var end = Math.min(num, data.length);
+      var str = '';
+      for (var i = 0; i < end; i++) {
+        str += '<article class="widget"> <header class="widget-header"> <h2 class="widget-title"> <a href="post.html?id='+ data[i]['id'] +'">'+ data[i]['title'] +'</a> </h2> <div class="widget-meta"> <span>发表于 '+ data[i]['time'] +'</span> <span class="divider">/</span> </div> <div class="hr-line"></div> </header> <section class="widget-body"> '+ data[i]['des'] +'</section> <section class="widget-footer"> <a class="btn" href="post.html?id='+ data[i]['id'] +'">阅读全文</a> </section> </article>';
+      }
+      // console.log(data);
+      $('#main_content_wrap').append(str);
+    }, 'json');
+  } else {
+    var start = (p - 1) * num;
+    var end = Math.min((start + num), data.length);
+    var str = '';
+    for (var i = start; i < end; i++) {
+      str += '<article class="widget"> <header class="widget-header"> <h2 class="widget-title"> <a href="post.html?id='+ data[i]['id'] +'">'+ data[i]['title'] +'</a> </h2> <div class="widget-meta"> <span>发表于 '+ data[i]['time'] +'</span> <span class="divider">/</span> </div> <div class="hr-line"></div> </header> <section class="widget-body"> '+ data[i]['des'] +'</section> <section class="widget-footer"> <a class="btn" href="post.html?id='+ data[i]['id'] +'">阅读全文</a> </section> </article>';
+    }
 
-		//check if user has clicked a filter already selected 
-		} else if( filter_tab_placeholder.data('type') == selected_filter ) {
-			filter_tab_placeholder.text($(event.target).text());
-			$('.cd-tab-filter').removeClass('is-open');	
+    $('#main_content_wrap').append(str);
+  }
+}
 
-		} else {
-			//close the dropdown and change placeholder text/data-type value
-			$('.cd-tab-filter').removeClass('is-open');
-			filter_tab_placeholder.text($(event.target).text()).data('type', selected_filter);
-			filter_tab_placeholder_text = $(event.target).text();
-			
-			//add class selected to the selected filter item
-			$('.cd-tab-filter .selected').removeClass('selected');
-			$(event.target).addClass('selected');
-		}
-	});
-	
-	//close filter dropdown inside lateral .cd-filter 
-	$('.cd-filter-block h4').on('click', function(){
-		$(this).toggleClass('closed').siblings('.cd-filter-content').slideToggle(300);
-	})
+//滚动加载
+$(window).scroll(function(){
+  if (($(document).height() - $(window).height() - $(window).scrollTop()) < 300 && flag) {
+    p++;
 
-	//fix lateral filter and gallery on scrolling
-	$(window).on('scroll', function(){
-		(!window.requestAnimationFrame) ? fixGallery() : window.requestAnimationFrame(fixGallery);
-	});
+    if (p > total) $(window).off('scroll'); //取消滚动事件
 
-	function fixGallery() {
-		var offsetTop = $('.cd-main-content').offset().top,
-			scrollTop = $(window).scrollTop();
-		( scrollTop >= offsetTop ) ? $('.cd-main-content').addClass('is-fixed') : $('.cd-main-content').removeClass('is-fixed');
-	}
+    page(p)
+  }
+})
 
-	/************************************
-		MitItUp filter settings
-		More details: 
-		https://mixitup.kunkalabs.com/
-		or:
-		http://codepen.io/patrickkunka/
-	*************************************/
+//搜索
+function find(obj){
+  if (obj === undefined) obj = $('#search')[0];
+  var val = obj.value;
+  if (val != '') {
+    var str = '<section><button type="button" onclick="cancel()" class="btn-info">取消搜索</button></section>';
+    for (var i in data) {
+      var start = data[i]['title'].indexOf(val);
+      if (start != -1) {
+        //制作背景高亮
+        var title = data[i]['title'].substr(0, start);
+        title += '<span style="background:orange;">' + data[i]['title'].substr(start, val.length) + '</span>';
+        title += data[i]['title'].substr(start+val.length);
+        str += '<article class="widget"> <header class="widget-header"> <h2 class="widget-title"> <a href="post.html?id='+ data[i]['id'] +'">'+ title +'</a> </h2> <div class="widget-meta"> <span>发表于 '+ data[i]['time'] +'</span> <span class="divider">/</span> </div> <div class="hr-line"></div> </header> <section class="widget-body"> '+ data[i]['des'] +'</section> <section class="widget-footer"> <a class="btn" href="post.html?id='+ data[i]['id'] +'">阅读全文</a> </section> </article>';
+      }
+    }
 
-	buttonFilter.init();
-	$('.cd-gallery ul').mixItUp({
-	    controls: {
-	    	enable: false
-	    },
-	    callbacks: {
-	    	onMixStart: function(){
-	    		$('.cd-fail-message').fadeOut(200);
-	    	},
-	      	onMixFail: function(){
-	      		$('.cd-fail-message').fadeIn(200);
-	    	}
-	    }
-	});
+    //判断没搜到数据
+    if (str.indexOf('style') == -1) {
+      str += '<section class="widget"><h2>暂无数据</h2></section>';
+    }
+    $('#main_content_wrap').html(str);
 
-	//search filtering
-	//credits http://codepen.io/edprats/pen/pzAdg
-	var inputText;
-	var $matching = $();
+    //取消加载数据
+    flag = false;
+  }
+  return false;
+}
 
-	var delay = (function(){
-		var timer = 0;
-		return function(callback, ms){
-			clearTimeout (timer);
-		    timer = setTimeout(callback, ms);
-		};
-	})();
+//取消搜索
+function cancel(){
+  $('#main_content_wrap').empty();
+  $('#search').val('');
+  p = 1;
+  page(p);
+  flag = true;
+}
 
-	$(".cd-filter-content input[type='search']").keyup(function(){
-	  	// Delay function invoked to make sure user stopped typing
-	  	delay(function(){
-	    	inputText = $(".cd-filter-content input[type='search']").val().toLowerCase();
-	   		// Check to see if input field is empty
-	    	if ((inputText.length) > 0) {            
-	      		$('.mix').each(function() {
-		        	var $this = $(this);
-		        
-		        	// add item to be filtered out if input text matches items inside the title   
-		        	if($this.attr('class').toLowerCase().match(inputText)) {
-		          		$matching = $matching.add(this);
-		        	} else {
-		          		// removes any previously matched item
-		          		$matching = $matching.not(this);
-		        	}
-	      		});
-	      		$('.cd-gallery ul').mixItUp('filter', $matching);
-	    	} else {
-	      		// resets the filter to show all item if input is empty
-	      		$('.cd-gallery ul').mixItUp('filter', 'all');
-	    	}
-	  	}, 200 );
-	});
-});
-
-/*****************************************************
-	MixItUp - Define a single object literal 
-	to contain all filter custom functionality
-*****************************************************/
-var buttonFilter = {
-  	// Declare any variables we will need as properties of the object
-  	$filters: null,
-  	groups: [],
-  	outputArray: [],
-  	outputString: '',
-  
-  	// The "init" method will run on document ready and cache any jQuery objects we will need.
-  	init: function(){
-    	var self = this; // As a best practice, in each method we will asign "this" to the variable "self" so that it remains scope-agnostic. We will use it to refer to the parent "buttonFilter" object so that we can share methods and properties between all parts of the object.
-    
-    	self.$filters = $('.cd-main-content');
-    	self.$container = $('.cd-gallery ul');
-    
-	    self.$filters.find('.cd-filters').each(function(){
-	      	var $this = $(this);
-	      
-		    self.groups.push({
-		        $inputs: $this.find('.filter'),
-		        active: '',
-		        tracker: false
-		    });
-	    });
-	    
-	    self.bindHandlers();
-  	},
-  
-  	// The "bindHandlers" method will listen for whenever a button is clicked. 
-  	bindHandlers: function(){
-    	var self = this;
-
-    	self.$filters.on('click', 'a', function(e){
-	      	self.parseFilters();
-    	});
-	    self.$filters.on('change', function(){
-	      self.parseFilters();           
-	    });
-  	},
-  
-  	parseFilters: function(){
-	    var self = this;
-	 
-	    // loop through each filter group and grap the active filter from each one.
-	    for(var i = 0, group; group = self.groups[i]; i++){
-	    	group.active = [];
-	    	group.$inputs.each(function(){
-	    		var $this = $(this);
-	    		if($this.is('input[type="radio"]') || $this.is('input[type="checkbox"]')) {
-	    			if($this.is(':checked') ) {
-	    				group.active.push($this.attr('data-filter'));
-	    			}
-	    		} else if($this.is('select')){
-	    			group.active.push($this.val());
-	    		} else if( $this.find('.selected').length > 0 ) {
-	    			group.active.push($this.attr('data-filter'));
-	    		}
-	    	});
-	    }
-	    self.concatenate();
-  	},
-  
-  	concatenate: function(){
-    	var self = this;
-    
-    	self.outputString = ''; // Reset output string
-    
-	    for(var i = 0, group; group = self.groups[i]; i++){
-	      	self.outputString += group.active;
-	    }
-    
-	    // If the output string is empty, show all rather than none:    
-	    !self.outputString.length && (self.outputString = 'all'); 
-	
-    	// Send the output string to MixItUp via the 'filter' method:    
-		if(self.$container.mixItUp('isLoaded')){
-	    	self.$container.mixItUp('filter', self.outputString);
-		}
-  	}
-};
+//随机显示标题
+var title = [
+  '穷则独善其身，富则妻妾成群',
+  '君子成人之美，小人夺人所爱',
+  '英雄宝刀未老，老娘风韵犹存',
+  '天生我材必有用，老鼠儿子会打洞',
+  '书到用时方恨少，钱到月底不够花',
+  '两个黄鹂鸣翠柳，一行白鹭上西天',
+  '问君能有几多愁，恰似一群太监上青楼',
+  '相爱没有那么容易，每个人都有他的手机',
+  '如果天黑之前来得及，我要挖了你的眼睛',
+  '你所有为人称道的美丽，都有PS的痕迹',
+  '想飞上天和太阳肩并肩',
+  '大爷听过我的歌，小伙亲过我的脸',
+  '答应我你从此不在深夜里排队',
+  '我们坐在高高的骨灰旁边～～',
+  '千万别说你一无所有，至少你还有病啊'
+];
+var index = Math.ceil(Math.random() * title.length);
+$('#project_tagline').html(title[index]);
